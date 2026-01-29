@@ -546,7 +546,7 @@ def handle_message(event):
             browser_instance.close()
     except Exception as e:
         logger.error(f"CRITICAL Playwright Error: {e}")
-                amz_price = None
+        amz_price = None
 
     # 3. 結果の処理（DB保存 ＆ 楽天検索）
     if amz_price:
