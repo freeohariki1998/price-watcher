@@ -1,0 +1,7 @@
+line-bot-sdk
+flask
+playwright
+requests
+google-generativeai
+beautifulsoup4
+gunicorn
