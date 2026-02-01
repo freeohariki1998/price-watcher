@@ -189,58 +189,46 @@ def handle_message(event):
 
     # --- 4. 価格更新機能 ---
     if text == "価格更新":
-        logger.info(f": ユーザー {user_id} 価格更新を押しました")
-        line_helper.reply_text(event.reply_token, "全商品の最新価格をチェックするね！少し時間がかかるから終わったらリストを送るよ⏳")
+        line_helper.reply_text(event.reply_token, "現在の価格を調べてくるね！少し時間がかかるから終わったらりすとを送るよ⏳")
+        
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
-        # 【修正】新しい列名から情報を取得
-        c.execute("SELECT title, asin, amz_price FROM users WHERE user_id = ?", (user_id,))
+        c.execute("SELECT asin, title FROM users WHERE user_id = ?", (user_id,))
         rows = c.fetchall()
-        with sync_playwright() as p:
-            browser_instance = p.chromium.launch(headless=True, args=["--no-sandbox"])
-            context = browser_instance.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            )
-            page = context.new_page()
-            for title, asin, old_amz_price in rows:
-                # 1. Amazon最新価格を取得
-                _, new_amz_price = get_product_info(page, asin)
-                c.execute("""
-                    UPDATE users 
-                    SET amz_price = ?
-                    WHERE user_id = ? AND asin = ?
-                """, (new_amz_price or old_amz_price, user_id, asin))
-                page.wait_for_timeout(1000) 
-            browser_instance.close()
-        conn.commit()
+        
+        if not rows:
+            line_helper.push_text(user_id, "まだ登録されている商品がないよ。")
+            conn.close()
+            return
 
-        # 4. 更新後の最新データを再取得して、リストとして表示する
-        c.execute("SELECT title, amz_price, asin FROM users WHERE user_id = ? ORDER BY id DESC LIMIT 10", (user_id,))
-        updated_rows = c.fetchall()
+        updated_bubbles = []
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
+            page = browser.new_page()
+            
+            for asin, old_title in rows:
+                title, new_price = get_product_info(page, asin)
+                if new_price:
+                    # DBを最新価格に更新
+                    c.execute("UPDATE users SET amz_price = ?, title = ? WHERE user_id = ? AND asin = ?", 
+                            (new_price, title, user_id, asin))
+                    updated_bubbles.append(create_product_bubble(title, new_price, asin))
+            
+            conn.commit()
+            browser.close()
         conn.close()
 
-        # 5. 更新後のカードリスト（カルーセル）を作成
-        bubbles = []
-        for t, ap, rp, a, ru in updated_rows:
-            bubbles.append(create_product_bubble(t, ap, rp, a, ru))
-
-        carousel = {"type": "carousel", "contents": bubbles}
-
-        # 6. 最後は Pushメッセージで「テキスト」と「最新リスト」をセットで送る
-        with ApiClient(configuration) as api_client:
-            api = MessagingApi(api_client)
-            api.push_message(
-                PushMessageRequest(
-                    to=user_id,
-                    messages=[
-                        TextMessage(text="お待たせ！全部の価格を更新したよ。今の最安値はこれだね✨"),
-                        FlexMessage(
-                            alt_text="最新価格リスト",
-                            contents=FlexContainer.from_dict(carousel)
-                        )
-                    ]
-                )
-            )
+        if updated_bubbles:
+            with ApiClient(configuration) as api_client:
+                api = MessagingApi(api_client)
+                api.push_message(PushMessageRequest(to=user_id, messages=[
+                    TextMessage(text="最新の価格に更新したよ！✨"),
+                    FlexMessage(alt_text="最新価格リスト", contents=FlexContainer.from_dict({
+                        "type": "carousel", "contents": updated_bubbles
+                    }))
+                ]))
+        else:
+            line_helper.push_text(user_id, "価格の更新に失敗したか、商品が見つからなかったよ。")
         return
 
     # URL登録処理
