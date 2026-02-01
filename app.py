@@ -151,7 +151,7 @@ def handle_message(event):
         c = conn.cursor()
         
         c.execute("""
-            SELECT title, amz_price, rakuten_price, asin, rakuten_url 
+            SELECT title, amz_price, asin 
             FROM users 
             WHERE user_id = ? 
             ORDER BY id DESC LIMIT 10
@@ -165,8 +165,8 @@ def handle_message(event):
             return
 
         bubbles = []
-        for title, amz_p, rak_p, asin, rak_url in rows:
-            bubbles.append(create_product_bubble(title, amz_p, rak_p, asin, rak_url))
+        for title, amz_p, asin in rows:
+            bubbles.append(create_product_bubble(title, amz_p, asin))
         carousel_contents = {
             "type": "carousel",
             "contents": bubbles
@@ -205,7 +205,6 @@ def handle_message(event):
             for title, asin, old_amz_price in rows:
                 # 1. Amazon最新価格を取得
                 _, new_amz_price = get_product_info(page, asin)
-                # 3. 【重要】Amazonと楽天の両方の情報をDBに保存
                 c.execute("""
                     UPDATE users 
                     SET amz_price = ?
