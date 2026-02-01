@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
-AMAZON_AFF_ID = os.getenv("AMAZPN_AFF_ID")
+AMAZPN_AFF_ID = os.getenv("AMAZPN_AFF_ID")
 DB_FILE = os.getenv("DB_FILE")
 
 configuration = Configuration(access_token=LINE_CHANNEL_ACCESS_TOKEN)
