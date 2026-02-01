@@ -41,31 +41,34 @@ line_helper = LineBotHelper(configuration)
 
 # --- Flex Message 生成関数 ---
 def create_product_bubble(title, amz_price, asin):
-    display_title = (title[:35] + '...') if len(title) > 35 else title
+    # タイトルの短縮（microサイズに合わせてさらに短めに）
+    display_title = (title[:18] + '...') if len(title) > 18 else title
     amz_url = f"https://www.amazon.co.jp/dp/{asin}?tag={AMAZPN_AFF_ID}"
     
     bubble = {
         "type": "bubble",
-        "size": "mega",
+        "size": "micro",  # 以前と同じコンパクトサイズに戻しました
         "hero": {
             "type": "image",
             "url": f"https://images-na.ssl-images-amazon.com/images/P/{asin}.09.LZZZZZZZ.jpg",
-            "size": "full", "aspectMode": "fit", "aspectRatio": "20:13"
+            "size": "full", 
+            "aspectMode": "cover", # 正しい値を指定
+            "aspectRatio": "1:1"   # 正方形に戻しました
         },
         "body": {
             "type": "box", "layout": "vertical", "contents": [
-                {"type": "text", "text": display_title, "weight": "bold", "size": "md", "wrap": True},
+                {"type": "text", "text": display_title, "weight": "bold", "size": "sm", "wrap": True},
                 {"type": "box", "layout": "baseline", "contents": [
-                    {"type": "text", "text": "Amazon価格:", "size": "sm", "color": "#888888", "flex": 2},
-                    {"type": "text", "text": f"¥{amz_price:,}", "weight": "bold", "size": "xl", "color": "#e47911", "flex": 3}
+                    {"type": "text", "text": "Amazon:", "size": "xs", "color": "#888888", "flex": 2},
+                    {"type": "text", "text": f"¥{amz_price:,}", "weight": "bold", "size": "md", "color": "#e47911", "flex": 4}
                 ], "margin": "md"}
             ]
         },
         "footer": {
             "type": "box", "layout": "vertical", "spacing": "sm",
             "contents": [
-                {"type": "button", "action": {"type": "uri", "label": "Amazonで見る", "uri": amz_url}, "style": "primary", "color": "#f0c14b"},
-                {"type": "button", "action": {"type": "message", "label": "監視を解除する", "text": f"削除 {asin}"}, "style": "link", "color": "#ff0000"}
+                {"type": "button", "action": {"type": "uri", "label": "Amazon", "uri": amz_url}, "style": "primary", "color": "#f0c14b", "height": "sm"},
+                {"type": "button", "action": {"type": "message", "label": "解除", "text": f"削除 {asin}"}, "style": "link", "color": "#ff0000", "height": "sm"}
             ]
         }
     }

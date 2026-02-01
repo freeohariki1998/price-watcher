@@ -31,38 +31,33 @@ configuration = Configuration(access_token=LINE_CHANNEL_ACCESS_TOKEN)
 
 # --- 値下げ通知用の Flex Message 生成 ---
 def create_sale_notification_bubble(title, old_price, new_price, asin):
-    diff = old_price - new_price
-    amz_url = f"https://www.amazon.co.jp/dp/{asin}?tag={AMAZON_AFF_ID}"
-    
-    # 値下げ幅に応じたラベル
-    label = "大幅値下げ！🚨" if diff >= 3000 else "値下がりしました！✨"
+    display_title = (title[:18] + '...') if len(title) > 18 else title
+    amz_url = f"https://www.amazon.co.jp/dp/{asin}?tag={AMAZPN_AFF_ID}"
     
     bubble = {
         "type": "bubble",
-        "styles": {"header": {"backgroundColor": "#ff4b4b"}},
-        "header": {
-            "type": "box", "layout": "vertical", "contents": [
-                {"type": "text", "text": label, "color": "#ffffff", "weight": "bold", "size": "sm"}
-            ]
-        },
+        "size": "micro",  # 以前と同じコンパクトサイズに戻しました
         "hero": {
             "type": "image",
             "url": f"https://images-na.ssl-images-amazon.com/images/P/{asin}.09.LZZZZZZZ.jpg",
-            "size": "full", "aspectMode": "fit", "aspectRatio": "20:13"
+            "size": "full", 
+            "aspectMode": "cover", # 正しい値を指定
+            "aspectRatio": "1:1"   # 正方形に戻しました
         },
         "body": {
             "type": "box", "layout": "vertical", "contents": [
-                {"type": "text", "text": title, "weight": "bold", "size": "md", "wrap": True},
-                {"type": "box", "layout": "baseline", "spacing": "sm", "contents": [
-                    {"type": "text", "text": f"¥{old_price:,}", "size": "sm", "color": "#aaaaaa", "decoration": "line-through"},
-                    {"type": "text", "text": f"¥{new_price:,}", "size": "xl", "color": "#e47911", "weight": "bold"}
-                ], "margin": "md"},
-                {"type": "text", "text": f"前回より {diff:,} 円お得です！", "size": "sm", "color": "#ff4b4b", "margin": "sm"}
+                {"type": "text", "text": display_title, "weight": "bold", "size": "sm", "wrap": True},
+                {"type": "box", "layout": "baseline", "contents": [
+                    {"type": "text", "text": "Amazon:", "size": "xs", "color": "#888888", "flex": 2},
+                    {"type": "text", "text": f"¥{amz_price:,}", "weight": "bold", "size": "md", "color": "#e47911", "flex": 4}
+                ], "margin": "md"}
             ]
         },
         "footer": {
-            "type": "box", "layout": "vertical", "contents": [
-                {"type": "button", "action": {"type": "uri", "label": "Amazonで今すぐチェック", "uri": amz_url}, "style": "primary", "color": "#f0c14b"}
+            "type": "box", "layout": "vertical", "spacing": "sm",
+            "contents": [
+                {"type": "button", "action": {"type": "uri", "label": "Amazon", "uri": amz_url}, "style": "primary", "color": "#f0c14b", "height": "sm"},
+                {"type": "button", "action": {"type": "message", "label": "解除", "text": f"削除 {asin}"}, "style": "link", "color": "#ff0000", "height": "sm"}
             ]
         }
     }
