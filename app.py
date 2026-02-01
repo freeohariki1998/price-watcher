@@ -50,7 +50,7 @@ def create_product_bubble(title, amz_price, asin):
         "hero": {
             "type": "image",
             "url": f"https://images-na.ssl-images-amazon.com/images/P/{asin}.09.LZZZZZZZ.jpg",
-            "size": "full", "aspectMode": "aspectFit", "aspectRatio": "20:13"
+            "size": "full", "aspectMode": "fit", "aspectRatio": "20:13"
         },
         "body": {
             "type": "box", "layout": "vertical", "contents": [
