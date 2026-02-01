@@ -115,9 +115,17 @@ def handle_message(event):
     user_id = event.source.user_id
 
     if text == "使い方":
-        guide = ("【使い方】\nAmazon商品のURLを送るだけで、値下がり時に通知します！\n\n"
-                 "・URL送信：監視登録\n・マイリスト表示：登録中の商品確認\n・価格更新：手動チェック")
-        line_helper.reply_text(event.reply_token, guide)
+        guide_text = (
+            "【使い方ガイド】\n\n"
+            "1. Amazonの商品ページで「共有」ボタンを押す\n"
+            "2. このBotを選んでURLを送信\n"
+            "3.Amazonの価格を即座にチェックします。\n\n"
+            "🔔 [自動監視スタート]\n"
+            "URLを送るだけで監視リストに登録！価格が下がった時に自動で通知します。\n\n"
+            "❌ [監視を止めたい時]\n"
+            "『解除』と送ると、現在監視中のリストを確認・消去できます。"
+        )
+        line_helper.reply_text(event.reply_token, guide_text)
         return
 
     if text.startswith("削除 "):
@@ -126,28 +134,114 @@ def handle_message(event):
         c = conn.cursor()
         c.execute("DELETE FROM users WHERE user_id = ? AND asin = ?", (user_id, asin_to_delete))
         conn.commit()
-        success = c.rowcount > 0
+        deleted_count = c.rowcount
         conn.close()
-        line_helper.reply_text(event.reply_token, "削除したよ！" if success else "見つからなかったよ。")
+
+        if deleted_count > 0:
+            line_helper.reply_text(event.reply_token, f"商品（ASIN: {asin_to_delete}）を監視リストから削除したよ。")
+        else:
+            line_helper.reply_text(event.reply_token, "削除に失敗したか、すでにリストにないみたい。")
         return
 
+    # --- リスト表示機能 ---
     if text == "マイリスト表示":
+        logger.info(f": ユーザー {user_id} がマイリストを表示します")
+
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
-        c.execute("SELECT title, amz_price, asin FROM users WHERE user_id = ? ORDER BY id DESC LIMIT 10", (user_id,))
+        
+        c.execute("""
+            SELECT title, amz_price, rakuten_price, asin, rakuten_url 
+            FROM users 
+            WHERE user_id = ? 
+            ORDER BY id DESC LIMIT 10
+        """, (user_id,))
+        
         rows = c.fetchall()
         conn.close()
 
         if not rows:
-            line_helper.reply_text(event.reply_token, "現在監視中の商品はありません。")
+            line_helper.reply_text(user_id, "現在監視中の商品はありません。")
             return
 
-        bubbles = [create_product_bubble(t, p, a) for t, p, a in rows]
+        bubbles = []
+        for title, amz_p, rak_p, asin, rak_url in rows:
+            bubbles.append(create_product_bubble(title, amz_p, rak_p, asin, rak_url))
+        carousel_contents = {
+            "type": "carousel",
+            "contents": bubbles
+        }
+
         with ApiClient(configuration) as api_client:
             api = MessagingApi(api_client)
-            api.push_message(PushMessageRequest(to=user_id, messages=[
-                FlexMessage(alt_text="マイリスト", contents=FlexContainer.from_dict({"type": "carousel", "contents": bubbles}))
-            ]))
+            api.push_message(
+                PushMessageRequest(
+                    to=user_id,
+                    messages=[
+                        FlexMessage(
+                            alt_text="マイリスト表示",
+                            contents=FlexContainer.from_dict(carousel_contents)
+                        )
+                    ]
+                )
+            )
+            return
+
+    # --- 4. 価格更新機能 ---
+    if text == "価格更新":
+        logger.info(f": ユーザー {user_id} 価格更新を押しました")
+        line_helper.reply_text(event.reply_token, "全商品の最新価格をチェックするね！少し時間がかかるから終わったらリストを送るよ⏳")
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        # 【修正】新しい列名から情報を取得
+        c.execute("SELECT title, asin, amz_price FROM users WHERE user_id = ?", (user_id,))
+        rows = c.fetchall()
+        with sync_playwright() as p:
+            browser_instance = p.chromium.launch(headless=True, args=["--no-sandbox"])
+            context = browser_instance.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            )
+            page = context.new_page()
+            for title, asin, old_amz_price in rows:
+                # 1. Amazon最新価格を取得
+                _, new_amz_price = get_product_info(page, asin)
+                # 3. 【重要】Amazonと楽天の両方の情報をDBに保存
+                c.execute("""
+                    UPDATE users 
+                    SET amz_price = ?
+                    WHERE user_id = ? AND asin = ?
+                """, (new_amz_price or old_amz_price, user_id, asin))
+                page.wait_for_timeout(1000) 
+            browser_instance.close()
+        conn.commit()
+
+        # 4. 更新後の最新データを再取得して、リストとして表示する
+        c.execute("SELECT title, amz_price, asin FROM users WHERE user_id = ? ORDER BY id DESC LIMIT 10", (user_id,))
+        updated_rows = c.fetchall()
+        conn.close()
+
+        # 5. 更新後のカードリスト（カルーセル）を作成
+        bubbles = []
+        for t, ap, rp, a, ru in updated_rows:
+            bubbles.append(create_product_bubble(t, ap, rp, a, ru))
+
+        carousel = {"type": "carousel", "contents": bubbles}
+
+        # 6. 最後は Pushメッセージで「テキスト」と「最新リスト」をセットで送る
+        with ApiClient(configuration) as api_client:
+            api = MessagingApi(api_client)
+            api.push_message(
+                PushMessageRequest(
+                    to=user_id,
+                    messages=[
+                        TextMessage(text="お待たせ！全部の価格を更新したよ。今の最安値はこれだね✨"),
+                        FlexMessage(
+                            alt_text="最新価格リスト",
+                            contents=FlexContainer.from_dict(carousel)
+                        )
+                    ]
+                )
+            )
         return
 
     # URL登録処理
