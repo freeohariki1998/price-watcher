@@ -30,26 +30,29 @@ DB_FILE = os.getenv("DB_FILE")
 configuration = Configuration(access_token=LINE_CHANNEL_ACCESS_TOKEN)
 
 # --- 値下げ通知用の Flex Message 生成 ---
+# --- 値下げ通知用の Flex Message 生成 ---
 def create_sale_notification_bubble(title, old_price, new_price, asin):
     display_title = (title[:18] + '...') if len(title) > 18 else title
-    amz_url = f"https://www.amazon.co.jp/dp/{asin}?tag={AMAZPN_AFF_ID}"
+    # 前回の修正を反映して AMAZON_AFF_ID に統一
+    amz_url = f"https://www.amazon.co.jp/dp/{asin}?tag={AMAZON_AFF_ID}"
     
     bubble = {
         "type": "bubble",
-        "size": "micro",  # 以前と同じコンパクトサイズに戻しました
+        "size": "micro",
         "hero": {
             "type": "image",
             "url": f"https://images-na.ssl-images-amazon.com/images/P/{asin}.09.LZZZZZZZ.jpg",
             "size": "full", 
-            "aspectMode": "cover", # 正しい値を指定
-            "aspectRatio": "1:1"   # 正方形に戻しました
+            "aspectMode": "cover",
+            "aspectRatio": "1:1"
         },
         "body": {
             "type": "box", "layout": "vertical", "contents": [
                 {"type": "text", "text": display_title, "weight": "bold", "size": "sm", "wrap": True},
                 {"type": "box", "layout": "baseline", "contents": [
                     {"type": "text", "text": "Amazon:", "size": "xs", "color": "#888888", "flex": 2},
-                    {"type": "text", "text": f"¥{amz_price:,}", "weight": "bold", "size": "md", "color": "#e47911", "flex": 4}
+                    # ここを amz_price から new_price に修正
+                    {"type": "text", "text": f"¥{new_price:,}", "weight": "bold", "size": "md", "color": "#e47911", "flex": 4}
                 ], "margin": "md"}
             ]
         },
