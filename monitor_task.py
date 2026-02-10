@@ -34,7 +34,7 @@ configuration = Configuration(access_token=LINE_CHANNEL_ACCESS_TOKEN)
 def create_sale_notification_bubble(title, old_price, new_price, asin):
     display_title = (title[:18] + '...') if len(title) > 18 else title
     # 前回の修正を反映して AMAZON_AFF_ID に統一
-    amz_url = f"https://www.amazon.co.jp/dp/{asin}?tag={AMAZON_AFF_ID}"
+    amz_url = f"https://www.amazon.co.jp/dp/{asin}?tag={AMAZPN_AFF_ID}"
     
     bubble = {
         "type": "bubble",
